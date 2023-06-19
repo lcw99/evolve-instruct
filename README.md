@@ -9,3 +9,4 @@ evol_instruct.json is sample generation, about 10,000 q&a pair from base_instruc
 
 Korean llm [demo](https://changgpt.semaphore.kr/) using this dataset. this model is on Huggingface [lcw99/polyglot-ko-12.8b-chang-instruct-chat](https://huggingface.co/lcw99/polyglot-ko-12.8b-chang-instruct-chat)  
 
+You can try above Korean model on famouse LLM framework [FastChat](https://github.com/lm-sys/FastChat).  
