@@ -1,21 +1,25 @@
 import ast
+import time
+from enum import Enum
 from typing import List
 
-import pandas as pd
 import numpy as np
-from enum import Enum
-
-import time
+import pandas as pd
 import torch
 from datasets import Dataset, DatasetDict
+from dotenv import load_dotenv
+from tqdm.auto import tqdm
 from transformers import pipeline
 from transformers.pipelines.pt_utils import KeyDataset
-from tqdm.auto import tqdm
-
+import argparse
 import markdown
 from bs4 import BeautifulSoup
 from datasets import load_dataset
-import os, openai
+import os
+import openai
+
+load_dotenv()
+
 
 class Mutation(Enum):
     FRESH_START = 0
@@ -61,9 +65,9 @@ class WizardLM:
         self.max_len_bytes = max_len_chars
         self.prompt_templates = dict()
         self.prompt_templates['base'] = ""
-        write_in_korean = "Write in Korean."
-        self.prompt_translate_into_korean = """
-Translate #Given Prompt# to #New Prompt# in Korean."
+        write_in_vietnamese = "Write in Vietnamese."
+        self.prompt_translate_into_vietnamese = """
+Translate #Given Prompt# to #New Prompt# in Vietnamese."
 
 #Given Prompt#:
 <PROMPT>
@@ -71,7 +75,8 @@ Translate #Given Prompt# to #New Prompt# in Korean."
 
         self.prompt_templates[Mutation.FRESH_START] = \
             self.prompt_templates['base'] + \
-f"""Rewrite #Given Prompt# by switching the locale into Korea and create #New Prompt#. {write_in_korean}
+            f"""Rewrite #Given Prompt# by switching the locale into Vietnamese and create #New Prompt#. 
+            {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -79,7 +84,8 @@ f"""Rewrite #Given Prompt# by switching the locale into Korea and create #New Pr
 
         self.prompt_templates[Mutation.COMPLICATE] = \
             self.prompt_templates['base'] + \
-f"""Rewrite #Given Prompt# to make it slightly more complicated, and create #New Prompt#. {write_in_korean}
+            f"""Rewrite #Given Prompt# to make it slightly more complicated, and create #New Prompt#. 
+            {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -87,7 +93,8 @@ f"""Rewrite #Given Prompt# to make it slightly more complicated, and create #New
 
         self.prompt_templates[Mutation.ADD_CONSTRAINTS] = \
             self.prompt_templates['base'] + \
-f"""Add a few more constraints or requirements to #Given Prompt#, and create #New Prompt#. {write_in_korean}
+            f"""Add a few more constraints or requirements to #Given Prompt#, 
+            and create #New Prompt#. {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -95,7 +102,7 @@ f"""Add a few more constraints or requirements to #Given Prompt#, and create #Ne
 
         self.prompt_templates[Mutation.DEEPEN] = \
             self.prompt_templates['base'] + \
-f"""Slightly increase the depth and breadth of #Given Prompt#, and create #New Prompt#. {write_in_korean}
+            f"""Slightly increase the depth and breadth of #Given Prompt#, and create #New Prompt#. {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -103,7 +110,7 @@ f"""Slightly increase the depth and breadth of #Given Prompt#, and create #New P
 
         self.prompt_templates[Mutation.CONCRETIZE] = \
             self.prompt_templates['base'] + \
-f"""Make #Given Prompt# slightly more concrete, and create #New Prompt#. {write_in_korean}
+            f"""Make #Given Prompt# slightly more concrete, and create #New Prompt#. {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -111,7 +118,8 @@ f"""Make #Given Prompt# slightly more concrete, and create #New Prompt#. {write_
 
         self.prompt_templates[Mutation.INCREASE_REASONING] = \
             self.prompt_templates['base'] + \
-f"""If #Given Prompt# can be solved with just a few simple thinking processes, rewrite it to explicitly request multi-step reasoning, and create #New Prompt#. {write_in_korean}
+            f"""If #Given Prompt# can be solved with just a few simple thinking processes, rewrite it to explicitly 
+            request multi-step reasoning, and create #New Prompt#. {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -119,7 +127,8 @@ f"""If #Given Prompt# can be solved with just a few simple thinking processes, r
 
         self.prompt_templates[Mutation.SWITCH_TOPIC] = \
             self.prompt_templates['base'] + \
-f"""Rewrite #Given Prompt# by switching the topic, keeping the domain and difficulty level similar, and create #New Prompt#. {write_in_korean}
+            f"""Rewrite #Given Prompt# by switching the topic, keeping the domain and difficulty level similar, 
+            and create #New Prompt#. {write_in_vietnamese}
 
 #Given Prompt#:
 <PROMPT>
@@ -145,7 +154,8 @@ f"""Rewrite #Given Prompt# by switching the topic, keeping the domain and diffic
                 )
         import json
         import uuid
-        with open(f"{self.seed_data.replace('.jsonl', '').replace('json', '')}.%s.json" % str(uuid.uuid4())[:4], "wt") as f:
+        with open(f"{self.seed_data.replace('.jsonl', '').replace('json', '')}.%s.json" % str(uuid.uuid4())[:4],
+                  "wt") as f:
             f.write(json.dumps(list_qa, indent=2, ensure_ascii=False))
 
     def create_seed_prompts(self):
@@ -264,7 +274,7 @@ f"""Rewrite #Given Prompt# by switching the topic, keeping the domain and diffic
             return False, "AI"
         if "gpt" in after.lower() and "gpt" not in before.lower():
             return False, "AI"
-        if "죄송하지만" in after.lower() and "죄송" not in before.lower() and len(after) < len(before):
+        if "Tôi xin lỗi" in after.lower() and "Xin lỗi" not in before.lower() and len(after) < len(before):
             return False, "sorry"
         if False:
             # too slow in general, not needed
@@ -283,8 +293,8 @@ Answer with 'Equal' or 'Not Equal'. No need to explain the reason.""" % (before,
 
 class ChatGPTPipeline:
     def __init__(self):
-        openai.api_key = os.environ["OPENAI_API_KEY"]
-        
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+
     def __call__(self, dataset):
         ret = []
         gen_count = 0
@@ -308,6 +318,7 @@ class ChatGPTPipeline:
             if gen_count % 10 == 0:
                 print(gen_count)
         return ret
+
 
 class GradioClientPipeline:
     def __init__(self, host, **kwargs):
@@ -379,7 +390,7 @@ class HFPipeline:
             ret.append(response)
         return ret
 
-import argparse
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Options')
     parser.add_argument("--seed_file", type=str)
@@ -387,7 +398,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_rows", type=int, default=5)
     parser.add_argument("--min_len_chars", type=int, default=32)
     parser.add_argument("--max_len_chars", type=int, default=512)
-    
+
     args = parser.parse_args()
 
     llm_pipeline = ChatGPTPipeline()
@@ -403,7 +414,7 @@ if __name__ == "__main__":
     )
     wizardlm.run()
 
-# python evolve.py --seed_file alpaca_data.json --column_names instruction input --num_rows 1000
+# python evolve.py --seed_file seed_data.json --column_names instruction input --num_rows 20
 
 # def test_check():
 #     import pickle
