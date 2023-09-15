@@ -163,8 +163,11 @@ f"""Rewrite #Given Prompt# by switching the topic, keeping the domain and diffic
             self.seed_text_list = []
             for d in data['train']:
                 s = ""
-                for col in self.column_names:
-                    s += d[col] + "\n"
+                if isinstance(self.column_names, str):
+                    s = d[self.column_names]
+                else:
+                    for col in self.column_names:
+                        s += d[col] + "\n"
                 self.seed_text_list.append(s.strip())
             assert self.seed_text_list, "data import failed, got empty list"
 
@@ -282,7 +285,8 @@ Answer with 'Equal' or 'Not Equal'. No need to explain the reason.""" % (before,
 
 
 class ChatGPTPipeline:
-    def __init__(self):
+    def __init__(self, model):
+        self.model = model
         openai.api_key = os.environ["OPENAI_API_KEY"]
         
     def __call__(self, dataset):
@@ -294,7 +298,8 @@ class ChatGPTPipeline:
             while not response and count < 3:
                 try:
                     response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo-0613",
+                        # model="gpt-3.5-turbo-0613",
+                        model=self.model,
                         messages=[{"role": "user", "content": d['text']}],
                     )
                 except:
@@ -386,11 +391,12 @@ if __name__ == "__main__":
     parser.add_argument("--column_names", nargs='+', default="instruction")
     parser.add_argument("--num_rows", type=int, default=5)
     parser.add_argument("--min_len_chars", type=int, default=32)
-    parser.add_argument("--max_len_chars", type=int, default=512)
+    parser.add_argument("--max_len_chars", type=int, default=2048)
+    parser.add_argument("--openai_model", type=str, default="gpt-3.5-turbo")
     
     args = parser.parse_args()
 
-    llm_pipeline = ChatGPTPipeline()
+    llm_pipeline = ChatGPTPipeline(args.openai_model)
 
     wizardlm = WizardLM(
         llm_pipeline=llm_pipeline,
@@ -404,6 +410,7 @@ if __name__ == "__main__":
     wizardlm.run()
 
 # python evolve.py --seed_file alpaca_data.json --column_names instruction input --num_rows 1000
+# python evolve.py --seed_file article_base_instruction.jsonl --column_names Instruction --max_len_chars 2048
 
 # def test_check():
 #     import pickle
